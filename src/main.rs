@@ -22,23 +22,23 @@ impl ApiClient {
         ApiClient {
             client: Client::new(),
             hostname: format!("https://{}.api.riotgames.com", region),
-            api_key: String::from("------API KEY------"), // <--------- Put your Api key here
+            api_key: String::from(""), // <--------- Put your Api key here
         }
     }
 
-    pub async fn fetchMatch(&self, matchId: u64) -> Result<String, reqwest::Error> {
+    pub async fn fetchMatch(&self, match_id: u64) -> Result<String, reqwest::Error> {
         let url = format!(
             "{}/lol/match/v4/matches/{}?api_key={}",
-            self.hostname, matchId, self.api_key
+            self.hostname, match_id, self.api_key
         );
 
         Ok(self.client.get(&url).send().await?.text().await?)
     }
 
-    pub async fn fetchPlayer(&self, accountId: String) -> Result<String, reqwest::Error> {
+    pub async fn fetchPlayer(&self, account_id: String) -> Result<String, reqwest::Error> {
         let url = format!(
-            "{}/lol/match/v4/matchlists/by-account/{}?api_key={}",
-            self.hostname, accountId, self.api_key
+            "{0}/lol/match/v4/matchlists/by-account/{1}?api_key={2}",
+            self.hostname, account_id, self.api_key
         );
 
         Ok(self.client.get(&url).send().await?.text().await?)
@@ -46,61 +46,115 @@ impl ApiClient {
 }
 
 fn search_match(matches: &Vec<Match>, id: &u64) -> Result<usize, usize> {
+    if matches.len() == 0 {
+        return Err(0);
+    }
+
     let mut left: usize = 0;
-    let mut right: usize = matches.len();
+    let mut right: usize = matches.len() - 1;
+    let mut past_middle: usize = 0;
 
     loop {
         let middle: usize = (left + right) / 2;
+        let item = &matches[middle].gameId;
 
-        if id == &matches[middle].gameId {
-            return Ok(middle);
-        }
-
-        if left == right {
-            if id > &matches[middle].gameId {
+        if past_middle == middle {
+            if id > item {
                 return Err(middle + 1);
-            } else {
-                return Err(middle - 1);
+            }
+
+            if id < item {
+                return Err(middle);
             }
         }
 
-        if id > &matches[middle].gameId {
+        if id == item {
+            return Ok(middle);
+        }
+
+        if id > item {
             left = middle + 1;
         }
 
-        if id < &matches[middle].gameId {
-            right = middle - 1;
+        if id < item {
+            if middle == 0 {
+                right = 0
+            } else {
+                right = middle - 1;
+            }
         }
+
+        past_middle = middle;
     }
 }
 
 fn search_player(players: &Vec<PlayerDto>, id: &String) -> Result<usize, usize> {
+    if players.len() == 0 {
+        return Err(0);
+    }
+
     let mut left: usize = 0;
-    let mut right: usize = players.len();
+    let mut right: usize = players.len() - 1;
+    let mut past_middle: usize = 0;
 
     loop {
         let middle: usize = (left + right) / 2;
+        let item = &players[middle].currentAccountId;
 
-        if id == &players[middle].currentAccountId {
-            return Ok(middle);
-        }
-
-        if left == right {
-            if id > &players[middle].currentAccountId {
+        if past_middle == middle {
+            if id > item {
                 return Err(middle + 1);
-            } else {
-                return Err(middle - 1);
+            }
+
+            if id < item {
+                return Err(middle);
             }
         }
 
-        if id > &players[middle].currentAccountId {
+        if id == item {
+            return Ok(middle);
+        }
+
+        if id > item {
             left = middle + 1;
         }
 
-        if id < &players[middle].currentAccountId {
-            right = middle - 1;
+        if id < item {
+            if middle == 0 {
+                right = 0;
+            } else {
+                right = middle - 1;
+            }
         }
+
+        past_middle = middle;
     }
+}
+
+async fn find_first_matches(region: &'static str) -> Result<MatchHistory, reqwest::Error> {
+    let client = ApiClient::new(region);
+
+    let accountId = match region {
+        "BR1" => "9tve8bFn1Oi5P0YHqhtS2URhZ532dY-4Nkes_eq0683Y",
+        "EUN1" => "0tYnLg8tRcpgmwN7kzn1e1S6SLGllVneTLc8Xl1ZXQMjfA",
+        "EUW1" => "ckB1ZjtW6D7xRxRopyN3vlp7iMpJVOFtI8PyR14y-3TJAg",
+        "LA1" => "93mFcFVrrjb9-DrPeQFCbmefHA0uldeTtKff9VutzLxq3qE",
+        "LA2" => "fSRnLCdJuWIt9TxqJE4dIXxk9EIgAHJYYfXoqTeIFoWymiHpdN8MljHs",
+        "NA1" => "w9Ay-9buvsBnLA9t6hp2dOfcjCHnjsVcUXAd5Yj_Qthmn2pIj1CsBETF",
+        "OC1" => "uQ5xfSUz-D-iVENfVVYu8PfqmCSzmE_lXPDywACYyBYQkdOVaeY5Ph8F",
+        "RU1" => "09aPcxfByeNGN4O_Od6ePa8OUH0900GP4-sWqe1no9vHzt29vi-D9MxE",
+        "TR1" => "i7Dkz-sGeRQcFDDq4wIfFMOzea7w7XsqLM4k3HD4MeZmH7ggD8Y9BWaD",
+        "JP1" => "D_ETtoMlfJLjVzQdABXb--GvH8agwYslSe29kC0OnCS6fa5aM0fn52FR",
+        "KR" => "2wVcuPh3YDciNfzwxsaPIy79g-Iqnz9dTBCGmm9Z5EjB",
+        _ => "",
+    };
+
+    let result = client.fetchPlayer(accountId.to_owned()).await?;
+
+    let deserealized_result: Result<MatchHistory, serde_json::Error> =
+        serde_json::from_str(&result);
+
+    Ok(deserealized_result.unwrap())
 }
 
 async fn mine(region: &'static str) {
@@ -108,6 +162,18 @@ async fn mine(region: &'static str) {
     let new_players = Arc::new(Mutex::new(Vec::with_capacity(10000) as Vec<PlayerDto>));
     let matches_to_find = Arc::new(Mutex::new(VecDeque::new()));
     let players_to_find = Arc::new(Mutex::new(VecDeque::new()));
+
+    let first_matches = find_first_matches(region).await.unwrap();
+
+    {
+        let mut matches_queu = matches_to_find.lock().unwrap();
+
+        for game in first_matches.matches {
+            if game.queue == 420 {
+                (*matches_queu).push_back(game.gameId);
+            }
+        }
+    }
 
     //Match minner
     // Atomic references for match minner
@@ -141,6 +207,8 @@ async fn mine(region: &'static str) {
                     let mut new_players = mm_new_players.lock().unwrap();
                     let mut new_matches = mm_new_matches.lock().unwrap();
                     let mut players_to_find = mm_players_to_find.lock().unwrap();
+
+                    dbg!(&*new_players);
 
                     for result in resolved_api_calls {
                         match result {
@@ -191,6 +259,7 @@ async fn mine(region: &'static str) {
 
     let player_minner = tokio::spawn(async move {
         let client = ApiClient::new(region);
+
         loop {
             let mut api_calls = Vec::new();
             let mut player_ids: Vec<String> = Vec::new();
@@ -198,8 +267,10 @@ async fn mine(region: &'static str) {
             {
                 let mut players_to_find = pm_players_to_find.lock().unwrap();
 
-                for _ in 0..num_of_request {
-                    player_ids.push((*players_to_find).pop_front().unwrap());
+                if (*players_to_find).len() > 10 {
+                    for _ in 0..num_of_request {
+                        player_ids.push((*players_to_find).pop_front().unwrap());
+                    }
                 }
             }
 
@@ -249,6 +320,7 @@ async fn mine(region: &'static str) {
                     }
                 }
             }
+
             thread::sleep(time::Duration::new(24, 0));
         }
     });
@@ -258,7 +330,7 @@ async fn mine(region: &'static str) {
 
 #[tokio::main]
 async fn main() {
-    // let na_minner_handler = mine("na1");
+    mine("NA1").await;
     // let euw_minner_handler = mine("euw1");
     // let la_minner_handler = mine("la1");
 
