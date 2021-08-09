@@ -1,8 +1,11 @@
-mod lolStructs;
+mod api_client;
+mod binary_search;
+mod lol_structs;
 
+use api_client::ApiClient;
+use binary_search::{search_match, search_player};
 use futures::future::join_all;
-use lolStructs::{Match, MatchHistory, PlayerDto};
-use reqwest::Client;
+use lol_structs::{Match, MatchHistory, PlayerDto};
 use serde_json::{self, Value};
 
 use std::{
@@ -10,126 +13,6 @@ use std::{
     sync::{Arc, Mutex},
     thread, time,
 };
-
-struct ApiClient {
-    client: Client,
-    hostname: String,
-    api_key: String,
-}
-
-impl ApiClient {
-    fn new(region: &str) -> ApiClient {
-        ApiClient {
-            client: Client::new(),
-            hostname: format!("https://{}.api.riotgames.com", region),
-            api_key: String::from(""), // <--------- Put your Api key here
-        }
-    }
-
-    pub async fn fetchMatch(&self, match_id: u64) -> Result<String, reqwest::Error> {
-        let url = format!(
-            "{}/lol/match/v4/matches/{}?api_key={}",
-            self.hostname, match_id, self.api_key
-        );
-
-        Ok(self.client.get(&url).send().await?.text().await?)
-    }
-
-    pub async fn fetchPlayer(&self, account_id: String) -> Result<String, reqwest::Error> {
-        let url = format!(
-            "{0}/lol/match/v4/matchlists/by-account/{1}?api_key={2}",
-            self.hostname, account_id, self.api_key
-        );
-
-        Ok(self.client.get(&url).send().await?.text().await?)
-    }
-}
-
-fn search_match(matches: &Vec<Match>, id: &u64) -> Result<usize, usize> {
-    if matches.len() == 0 {
-        return Err(0);
-    }
-
-    let mut left: usize = 0;
-    let mut right: usize = matches.len() - 1;
-    let mut past_middle: usize = 0;
-
-    loop {
-        let middle: usize = (left + right) / 2;
-        let item = &matches[middle].gameId;
-
-        if past_middle == middle {
-            if id > item {
-                return Err(middle + 1);
-            }
-
-            if id < item {
-                return Err(middle);
-            }
-        }
-
-        if id == item {
-            return Ok(middle);
-        }
-
-        if id > item {
-            left = middle + 1;
-        }
-
-        if id < item {
-            if middle == 0 {
-                right = 0
-            } else {
-                right = middle - 1;
-            }
-        }
-
-        past_middle = middle;
-    }
-}
-
-fn search_player(players: &Vec<PlayerDto>, id: &String) -> Result<usize, usize> {
-    if players.len() == 0 {
-        return Err(0);
-    }
-
-    let mut left: usize = 0;
-    let mut right: usize = players.len() - 1;
-    let mut past_middle: usize = 0;
-
-    loop {
-        let middle: usize = (left + right) / 2;
-        let item = &players[middle].currentAccountId;
-
-        if past_middle == middle {
-            if id > item {
-                return Err(middle + 1);
-            }
-
-            if id < item {
-                return Err(middle);
-            }
-        }
-
-        if id == item {
-            return Ok(middle);
-        }
-
-        if id > item {
-            left = middle + 1;
-        }
-
-        if id < item {
-            if middle == 0 {
-                right = 0;
-            } else {
-                right = middle - 1;
-            }
-        }
-
-        past_middle = middle;
-    }
-}
 
 async fn find_first_matches(region: &'static str) -> Result<MatchHistory, reqwest::Error> {
     let client = ApiClient::new(region);
