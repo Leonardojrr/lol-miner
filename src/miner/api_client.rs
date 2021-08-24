@@ -7,7 +7,7 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new(region: &str) -> ApiClient {
+    pub fn new(region: &String) -> ApiClient {
         ApiClient {
             client: Client::new(),
             hostname: format!("https://{}.api.riotgames.com", region),
@@ -15,7 +15,7 @@ impl ApiClient {
         }
     }
 
-    pub async fn fetchMatch(&self, match_id: u64) -> Result<String, reqwest::Error> {
+    pub async fn fetch_match(&self, match_id: u64) -> Result<String, reqwest::Error> {
         let url = format!(
             "{}/lol/match/v4/matches/{}?api_key={}",
             self.hostname, match_id, self.api_key
@@ -24,9 +24,9 @@ impl ApiClient {
         Ok(self.client.get(&url).send().await?.text().await?)
     }
 
-    pub async fn fetchPlayer(&self, account_id: String) -> Result<String, reqwest::Error> {
+    pub async fn fetch_player(&self, account_id: String) -> Result<String, reqwest::Error> {
         let url = format!(
-            "{0}/lol/match/v4/matchlists/by-account/{1}?api_key={2}",
+            "{}/lol/match/v4/matchlists/by-account/{}?api_key={}",
             self.hostname, account_id, self.api_key
         );
 

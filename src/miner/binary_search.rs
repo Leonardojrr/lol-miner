@@ -1,4 +1,4 @@
-use crate::lol_structs::{Match, PlayerDto};
+use super::lol_structs::{Match, PlayerDto};
 
 pub fn search_match(matches: &Vec<Match>, id: &u64) -> Result<usize, usize> {
     if matches.len() == 0 {
